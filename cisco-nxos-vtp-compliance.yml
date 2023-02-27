@@ -1,0 +1,55 @@
+---
+- name: Quick compliance check, save to file
+  hosts: nexus9k1,nexus9k2
+  gather_facts: false
+  vars:
+  tasks:
+  - name: check vtp status formatted via json for ease of checking
+    nxos_command:
+      commands: "show vtp status | json"
+    register: vtp_status
+
+  - name: check vtp status for file
+    nxos_command:
+      commands: "show vtp status"
+    register: vtp_status_file
+
+  - name: Save vtp-status.txt files
+    ansible.builtin.copy:
+      content: "{{ vtp_status_file.stdout[0] }}"
+      dest: "/tmp/{{ inventory_hostname }}-vtp-status.txt"
+    delegate_to: localhost
+
+  - name: print out vtp status files
+    ansible.builtin.debug:
+      msg: "{{ lookup('file', '/tmp/{{ inventory_hostname }}-vtp-status.txt') }}"
+    delegate_to: localhost
+
+  - name: VTP status in compliance
+    when: vtp_status.stdout[0].version == "3" and vtp_status.stdout[0].oper_mode != "transparent" and vtp_status.stdout[0].domain_name != "-"
+    ansible.builtin.debug:
+#      var: vtp_status
+      msg: "{{ inventory_hostname }} in vtp status compliance"
+
+  - name: VTP status not in compliance
+    when: vtp_status.stdout[0].version != "3" and vtp_status.stdout[0].oper_mode == "transparent" and vtp_status.stdout[0].domain_name == "-"
+    ansible.builtin.debug:
+#      var: vtp_status
+      msg: "{{ inventory_hostname }} NOT in vtp status compliance"
+
+  - name: check vtp password
+    nxos_command:
+      commands: "show vtp password | json"
+    register: vtp_password
+
+  - name: VTP password in compliance
+    when: vtp_password.stdout[0].passwd != "\\"
+    ansible.builtin.debug:
+#      var: vtp_password
+      msg: "{{ inventory_hostname }} in vtp status compliance"
+
+  - name: VTP password not in compliance
+    when: vtp_password.stdout[0].passwd == "\\"
+    ansible.builtin.debug:
+#      var: vtp_password
+      msg: "{{ inventory_hostname }} NOT in vtp status compliance"
